@@ -131,7 +131,8 @@ class Stats:
         self.reset()
 
     def reset(self):
-        self.scans = []
+        self.scansinrecents = []
+        self.scansoutrecents = []
         self.lastkillutc = 0
         self.lastkillmono = 0
         self.killstime = 0
@@ -437,8 +438,11 @@ def processevent(line):
             case "ReceiveText" if j["Channel"] == "npc":
                 if "$Pirate_OnStartScanCargo" in j["Message"]:
                     piratename = j["From_Localised"] if "From_Localised" in j else "[unknown]"
-                    logevent(msg_term=f"Cargo scanned by {piratename}",
-                            emoji="👀", timestamp=logtime, loglevel=getloglevel("ScanIncoming"))
+                    if piratename not in session.scansinrecents:
+                        if len(session.scansinrecents) == 5: session.scansinrecents.pop(0)
+                        session.scansinrecents.append(piratename)                        
+                        logevent(msg_term=f"Cargo scanned by {piratename}",
+                                emoji="👀", timestamp=logtime, loglevel=getloglevel("ScanIncoming"))
                 elif any(x in j["Message"] for x in BAIT_MESSAGES):
                     session.baitfails += 1
                     baitfails = f" (x{session.baitfails})" if setting_extendedstats else ""
@@ -457,9 +461,9 @@ def processevent(line):
                     logevent(msg_term=f"{Col.WARN}Scanned security{Col.END} ({ship})",
                             msg_discord=f"**Scanned security** ({ship})",
                             emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityScan"))
-                elif not ship in session.scans and (j["Ship"] in SHIPS_EASY or j["Ship"] in SHIPS_HARD):
+                elif not ship in session.scansoutrecents and (j["Ship"] in SHIPS_EASY or j["Ship"] in SHIPS_HARD):
                     track.sessionstart()
-                    session.scans.append(ship)
+                    session.scansoutrecents.append(ship)
                     hard = ""
                     log = getloglevel("ScanEasy")
                     if j["Ship"] in SHIPS_EASY:
@@ -475,7 +479,7 @@ def processevent(line):
                             emoji="🔎", timestamp=logtime, loglevel=log)
             case "Bounty" | "FactionKillBond":
                 track.sessionstart()
-                session.scans.clear()
+                session.scansoutrecents.clear()
                 session.kills +=1
                 total.kills +=1
                 thiskill = logtime
@@ -870,6 +874,7 @@ if __name__ == "__main__":
         msg_discord=f"**Monitor stopped** ({journal_file})",
         emoji="📕", loglevel=2)
         debug(f"\nTrack: {track.__dict__}")
+        
         if sys.argv[0].count("\\") > 1:
             input("\nPress ENTER to exit")	# This is *still* horrible
             sys.exit()
