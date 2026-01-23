@@ -40,7 +40,7 @@ REG_WEBHOOK = r"^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhook
 SHIPS_EASY = ["adder", "asp", "asp_scout", "cobramkiii", "cobramkiv", "diamondback", "diamondbackxl", "eagle", "empire_courier", "empire_eagle", "krait_light", "sidewinder", "viper", "viper_mkiv"]
 SHIPS_HARD = ["typex", "typex_2", "typex_3", "anaconda", "federation_dropship_mkii", "federation_dropship", "federation_gunship", "ferdelance", "empire_trader", "krait_mkii", "python", "vulture", "type9_military"]
 BAIT_MESSAGES = ["$Pirate_ThreatTooHigh", "$Pirate_NotEnoughCargo", "$Pirate_OnNoCargoFound"]
-LOGLEVEL_DEFAULTS = {"ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelLow": 2, "FuelCritical": 3, "FuelReport": 1, "Missions": 2, "MissionsAll": 3, "Merits": 0, "SummaryKills": 2, "SummaryBounties": 2, "SummaryMerits": 2, "NoKills": 3, "KillRate": 3}
+LOGLEVEL_DEFAULTS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelLow": 2, "FuelCritical": 3, "FuelReport": 1, "Missions": 2, "MissionsAll": 3, "Merits": 0, "SummaryKills": 2, "SummaryBounties": 2, "SummaryMerits": 2, "NoKills": 3, "KillRate": 3}
 COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", "Master", "Dangerous", "Deadly", "Elite", "Elite I", "Elite II", "Elite III", "Elite IV", "Elite V"]
 
 class Col:
@@ -434,6 +434,21 @@ def processevent(line):
         logtime = datetime.fromisoformat(j["timestamp"]) if "timestamp" in j else None
         track.thiseventtime = logtime
         match j["event"]:
+            case "ReceiveText" if j["Channel"] == "npc":
+                if "$Pirate_OnStartScanCargo" in j["Message"]:
+                    piratename = j["From_Localised"] if "From_Localised" in j else "[unknown]"
+                    logevent(msg_term=f"Cargo scanned by {piratename}",
+                            emoji="👀", timestamp=logtime, loglevel=getloglevel("ScanIncoming"))
+                elif any(x in j["Message"] for x in BAIT_MESSAGES):
+                    session.baitfails += 1
+                    baitfails = f" (x{session.baitfails})" if setting_extendedstats else ""
+                    logevent(msg_term=f"{Col.WARN}Pirate didn\"t engage due to insufficient cargo value{baitfails}{Col.END}",
+                            msg_discord=f"**Pirate didn\"t engage due to insufficient cargo value**{baitfails}",
+                            emoji="🎣", timestamp=logtime, loglevel=getloglevel("BaitValueLow"), event="BaitValueLow")
+                elif "Police_Attack" in j["Message"]:
+                    logevent(msg_term=f"{Col.BAD}Under attack by security services!{Col.END}",
+                            msg_discord=f"**Under attack by security services!**",
+                            emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityAttack"))
             case "ShipTargeted" if "Ship" in j:
                 ship = j["Ship_Localised"] if "Ship_Localised" in j else j["Ship"].title()
                 rank = "" if not "PilotRank" in j else f" ({j["PilotRank"]})"
@@ -615,17 +630,6 @@ def processevent(line):
                 logevent(msg_term=f"Dropped at {j["Type_Localised"]}",
                         emoji="🚀", timestamp=logtime, loglevel=2)
                 debug(f"Deploy time by supercruise drop: {track.deploytime}")
-            case "ReceiveText" if j["Channel"] == "npc":
-                if any(x in j["Message"] for x in BAIT_MESSAGES):
-                    session.baitfails += 1
-                    baitfails = f" (x{session.baitfails})" if setting_extendedstats else ""
-                    logevent(msg_term=f"{Col.WARN}Pirate didn\"t engage due to insufficient cargo value{baitfails}{Col.END}",
-                            msg_discord=f"**Pirate didn\"t engage due to insufficient cargo value**{baitfails}",
-                            emoji="🎣", timestamp=logtime, loglevel=getloglevel("BaitValueLow"), event="BaitValueLow")
-                elif "Police_Attack" in j["Message"]:
-                    logevent(msg_term=f"{Col.BAD}Under attack by security services!{Col.END}",
-                            msg_discord=f"**Under attack by security services!**",
-                            emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityAttack"))
             case "EjectCargo" if not j["Abandoned"] and j["Count"] == 1:
                 name = j["Type_Localised"] if "Type_Localised" in j else j["Type"].title()
                 logevent(msg_term=f"{Col.BAD}Cargo stolen!{Col.END} ({name})",

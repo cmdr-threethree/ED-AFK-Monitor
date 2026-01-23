@@ -38,12 +38,13 @@ Timestamp = true
 Identity = true
 
 [LogLevels]
-# 0 = None
+# 0 = Not logged
 # 1 = Terminal
 # 2 = Terminal & Discord
 # 3 = Terminal & Discord with user ping
-ScanEasy = 1            # Scans of 'easy' ships (Sidewinder etc.)
-ScanHard = 2            # Scans of 'hard' ships (Python etc.)
+ScanIncoming = 1        # Incoming cargo scans by pirates
+ScanEasy = 1            # Outgoing scans of 'easy' ships (Sidewinder etc.)
+ScanHard = 2            # Outgoing scans of 'hard' ships (Python etc.)
 KillEasy = 2            # Kills (bounty or bond) of easy ships
 KillHard = 2            # Kills (bounty or bond) of hard ships
 FighterHull = 2         # Fighter hull damage (20% increments)

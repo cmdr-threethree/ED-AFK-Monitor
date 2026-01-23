@@ -2,6 +2,10 @@
 ED AFK Monitor Changelog
 ------------------------
 
+WIP
+---
+-New log level 'ScanIncoming' reports scans of your cargo by pirates
+
 v260122
 -------
 - Monitor now waits for first game load before completing startup
