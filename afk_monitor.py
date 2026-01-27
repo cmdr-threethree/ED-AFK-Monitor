@@ -318,13 +318,14 @@ if profile: debug(f"Profile '{profile}': {config[profile]}")
 
 # Get settings from config
 setting_utc = getconfig("Settings", "UseUTC", False)
+setting_dynamictitle = getconfig("Settings", "DynamicTitle", True)
 setting_warnkillrate = getconfig("Settings", "WarnKillRate", 20)
 setting_warnnokills = getconfig("Settings", "WarnNoKills", 20)
 setting_piratenames = getconfig("Settings", "PirateNames", False)
 setting_bountyfaction = getconfig("Settings", "BountyFaction", True)
 setting_bountyvalue = getconfig("Settings", "BountyValue", False)
 setting_extendedstats = getconfig("Settings", "ExtendedStats", False)
-setting_dynamictitle = getconfig("Settings", "DynamicTitle", True)
+setting_minscanlevel = getconfig("Settings", "MinScanLevel", 1)
 discord_webhook = args.webhook if args.webhook is not None else getconfig("Discord", "WebhookURL", "")
 discord_user = getconfig("Discord", "UserID", 0)
 discord_prependcmdr = getconfig("Discord", "PrependCmdrName", False)
@@ -445,7 +446,8 @@ def processevent(line):
                         total.scansin += 1
                         scansin = f" (x{session.scansin})" if setting_extendedstats else ""
                         pirate = f" [{piratename}]" if setting_piratenames else ""
-                        if len(session.scansinrecents) == 5: session.scansinrecents.pop(0)
+                        if len(session.scansinrecents) == 5:
+                            session.scansinrecents.pop(0)
                         session.scansinrecents.append(piratename)                        
                         logevent(msg_term=f"Cargo scan{scansin}{pirate}",
                                  msg_discord=f"**Cargo scan{scansin}**{pirate}",
@@ -463,30 +465,39 @@ def processevent(line):
             case "ShipTargeted" if "Ship" in j:
                 ship = j["Ship_Localised"] if "Ship_Localised" in j else j["Ship"].title()
                 rank = "" if not "PilotRank" in j else f" ({j["PilotRank"]})"
+                # Security
                 if ship != session.lastsecurity and "PilotName" in j and "$ShipName_Police" in j["PilotName"]:
                     session.lastsecurity = ship
                     logevent(msg_term=f"{Col.WARN}Scanned security{Col.END} ({ship})",
                             msg_discord=f"**Scanned security** ({ship})",
                             emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityScan"))
-                elif not ship in session.scansoutrecents and (j["Ship"] in SHIPS_EASY or j["Ship"] in SHIPS_HARD):
+                # Pirates etc.
+                elif j["Ship"] in SHIPS_EASY or j["Ship"] in SHIPS_HARD:
                     track.sessionstart()
-                    session.scansoutrecents.append(ship)
-                    hard = ""
-                    log = getloglevel("ScanEasy")
-                    if j["Ship"] in SHIPS_EASY:
-                        col = Col.EASY
-                    elif j["Ship"] in SHIPS_HARD:
-                        col = Col.HARD
-                        log = getloglevel("ScanHard")
-                        hard = " ☠️"
-                    else:
-                        col = Col.WHITE
-                    logevent(msg_term=f"{col}Scan{Col.END}: {ship}{rank}",
-                            msg_discord=f"**{ship}**{hard}{rank}",
-                            emoji="🔎", timestamp=logtime, loglevel=log)
+                    piratename = j["PilotName_Localised"] if "PilotName_Localised" in j else "[unknown]"
+                    check = piratename if setting_minscanlevel != 0 else ship
+                    scanstage = j["ScanStage"] if "ScanStage" in j else 0
+                    if scanstage >= setting_minscanlevel and not check in session.scansoutrecents:
+                        if len(session.scansoutrecents) == 10:
+                            session.scansoutrecents.pop(0)
+                        session.scansoutrecents.append(check)
+                        hard = ""
+                        log = getloglevel("ScanEasy")
+                        if j["Ship"] in SHIPS_EASY:
+                            col = Col.EASY
+                        elif j["Ship"] in SHIPS_HARD:
+                            col = Col.HARD
+                            log = getloglevel("ScanHard")
+                            hard = " ☠️"
+                        else:
+                            col = Col.WHITE
+                        logevent(msg_term=f"{col}Scan{Col.END}: {ship}{rank}",
+                                msg_discord=f"**{ship}**{hard}{rank}",
+                                emoji="🔎", timestamp=logtime, loglevel=log)
             case "Bounty" | "FactionKillBond":
                 track.sessionstart()
-                session.scansoutrecents.clear()
+                if setting_minscanlevel == 0:
+                    session.scansoutrecents.clear()
                 session.kills +=1
                 total.kills +=1
                 thiskill = logtime

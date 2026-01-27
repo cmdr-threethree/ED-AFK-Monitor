@@ -5,6 +5,8 @@
 JournalFolder = ''
 # UseUTC = false (default) uses local timezone, set true for UTC (in-game time)
 UseUTC = false
+# DynamicTitle uses the window title to display some info (Default: true, only works on Windows OS)
+DynamicTitle = true
 # WarnKillRate sends a warning if kills/hour drop below set amount (Default: 20, log level 'KillRate')
 WarnKillRate = 20
 # WarnNoKills is time in minutes since last kill before sending a warning (Default: 20, log level 'NoKills')
@@ -17,8 +19,8 @@ BountyFaction = true
 BountyValue = false
 # ExtendedStats shows extra stats e.g. recent kill rate (Default: false)
 ExtendedStats = false
-# DynamicTitle uses the window title to display some info (Default: true, only works on Windows OS)
-DynamicTitle = true
+# MinScanLevel specifies a minimum scan level for outgoing ship scans (Default: 1)
+MinScanLevel = 1
 
 [Discord]
 # Use the settings below to enable Discord webhook integration
