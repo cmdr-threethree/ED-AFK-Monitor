@@ -482,7 +482,7 @@ def processevent(line):
                         if len(session.scansoutrecents) == 10:
                             session.scansoutrecents.pop(0)
                         session.scansoutrecents.append(check)
-                        pirate = f" [{piratename}]" if setting_piratenames else ""
+                        pirate = f" [{piratename}]" if setting_piratenames and piratename != UNKNOWN else ""
                         hard = ""
                         log = getloglevel("ScanEasy")
                         if j["Ship"] in SHIPS_EASY:
