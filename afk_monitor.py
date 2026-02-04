@@ -804,7 +804,8 @@ def summary(stats, logtime=None, session=True):
         stats_out["Kills"] = f"{stats.kills:,} ({kills_hour}/h | {time_format(kills_average_time)}/kill){kills_recent}"
 
     # Faction #1 kills
-    if log_faction > 0:
+    faction_kills = max(stats.factions.values())
+    if log_faction > 0 and faction_kills > 1:
         faction_kills = max(stats.factions.values())
         faction_kills_hour = per_hour(stats.killstime / (faction_kills - 1), 1)
         faction_kills_percent = round((faction_kills / stats.kills) * 100)
