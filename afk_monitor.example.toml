@@ -1,3 +1,10 @@
+# AFK Monitor Config
+# Welcome! This file controls the various options for AFK Monitor.
+# There are a lot of settings and all are optional, but if you want to get started quickly:
+# - Set 'WebhookURL' and 'UserID' in the [Discord] section to enable Discord output
+# - Tweak the settings in [LogLevels] to control what gets logged and where to
+# Feel free to read over the other settings at your leisure, and good hunting :)
+
 [Settings]
 # By default journals are loaded from your user folder
 # To override this change JournalFolder below, e.g.:
@@ -69,20 +76,26 @@ Merits = 0              # Merits gained (powerplay-only)
 NoKills = 3             # Warning of no kills for configured time ('WarnNoKills' in Settings)
 KillRate = 3            # Warning of low kill rate per hour ('WarnKillRate' in Settings)
 # Stat summaries are collated into one message every 10 kills and on exit
-# Levels works the same, with 3 in any category adding a user ping to the message
+# Levels work the same, with 3 in any category adding a user ping to the message
 SummaryKills = 2        # Kills and rate/h from bounties or bonds
 SummaryFaction = 0      # As above but for the most-killed faction
 SummaryBounties = 2     # Credits earned from bounties or bonds
 SummaryMerits = 2       # Merits (powerplay, only shown if merits earned)
 
 # Custom profiles (advanced)
-# You can set additional profiles to override settings as per the example below
-# Profiles are loaded by passing -p <profilename> via command line or shortcut
+# You can set additional profiles to override settings as per the examples below
+# - Profiles are loaded automatically if they exactly match the loaded commander name
+# - Alternatively they can be loaded by passing {-p <profilename>} via command line or shortcut
 #
-# [MyAltProfile]
+# ["ALT COMMANDER NAME"]
 # Discord.WebhookURL = "https://discord.com/api/webhooks/myaltwebhook"
 # LogLevels.ScanHard = 1
 #
-# Loading the above with {afk_monitor.py -p MyAltProfile} will override those two settings
-# This feature is most useful for those with multiple accounts or PCs
-# Note: profile, category and setting names are all case-sensitive
+# [AnotherProfile]
+# Discord.WebhookURL = "https://discord.com/api/webhooks/myaltwebhook"
+# LogLevels.ScanHard = 1
+#
+# The first example above would be loaded automatically when running CMDR ALT COMMANDER NAME
+# The second could be loaded manually with {afk_monitor.exe -p AnotherProfile}
+# 
+# Note: Commander name, profile, category and setting names are all case-sensitive
