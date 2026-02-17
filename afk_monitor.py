@@ -826,8 +826,12 @@ def summary(stats, logtime=None, session=True):
     # Output
     if stats_out:
         type = "Session" if session else "Total"
-        out_terminal = f"{type} Stats"
-        out_discord = f"**{type} Stats**"
+        
+        session_time = f" ({time_format(stats.killstime)})"
+        missions_completed = f" [{track.missionredirects}/{len(track.missionsactive)}]" if len(track.missionsactive) > 0 else ""
+        
+        out_terminal = f"{type} Stats{session_time}{missions_completed}"
+        out_discord = f"**{type} Stats**{session_time}{missions_completed}"
         
         for k, v in stats_out.items():
             if log_levels[k] >= 1:
