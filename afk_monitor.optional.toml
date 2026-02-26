@@ -8,8 +8,10 @@
 [Settings]
 # RecentFiles specifies number of files to show with --filesect (default: 10)
 RecentFiles = 10
-# TruncateNames shortens names of factions and pirates above this length in kill logs (default: 30)
-TruncateNames = 30
+# TruncatePirate shortens names of pirates above this length in kill logs (default: 25)
+TruncatePirate = 25
+# TruncateFaction shortens names of factions above this length in kill logs (default: 30)
+TruncateFaction = 30
 # WarnNoKillsInitial is the time in minutes before warning of no kills at session start (default: 5)
 WarnNoKillsInitial = 5
 # WarnKillRateDelay is the time in minutes before warning of low kill rate at session start (default: 5)
