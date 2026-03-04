@@ -927,6 +927,7 @@ if __name__ == "__main__":
                                 else:
                                     # Clear last warned time if past cooldown
                                     if track.warnednokills and timemono - track.warnednokills >= (cooldown * 60):
+                                        cooldown *= 2
                                         track.warnednokills = None
 
                                     # Check time since deployment if no kills yet
