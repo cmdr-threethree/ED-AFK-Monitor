@@ -392,7 +392,7 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
     if timestamp:
         logtime = timestamp if conf_settings["UseUTC"] else timestamp.astimezone()
     else:
-        logtime = datetime.now(timezone.utc) if conf_settings["UseUTC"] else datetime.now()
+        logtime = datetime.now(timezone.utc) if conf_settings["UseUTC"] else datetime.now().astimezone()
     logtime = datetime.strftime(logtime, "%H:%M:%S")
     track.logged +=1
     
