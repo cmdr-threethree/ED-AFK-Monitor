@@ -29,7 +29,7 @@ GITHUB_REPO = "PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
 FUEL_CRIT = 0.1		# 10%
-STATS_RECENT = 10
+STATS_RECENT = 30
 UNKNOWN = "[Unknown]"
 REG_JOURNAL = r"^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$"
 REG_WEBHOOK = r"^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-z0-9_-]+$"
@@ -462,7 +462,7 @@ def processevent(line):
                         
                         thisscan = logtime
                         if session.lastscanutc:
-                            seconds = (thisscan-session.lastscanutc).total_seconds()
+                            seconds = int((thisscan-session.lastscanutc).total_seconds())
                             if len(session.scansrecent) == STATS_RECENT: session.scansrecent.pop(0)
                             session.scansrecent.append(seconds)
                             session.scanstime += seconds
@@ -527,10 +527,11 @@ def processevent(line):
                 session.meritstoreport +=1
                 
                 if session.lastkillutc:
-                    seconds = (thiskill-session.lastkillutc).total_seconds()
+                    seconds = int((thiskill-session.lastkillutc).total_seconds())
                     killtime = f" (+{time_format(seconds)})"
                     session.killstime += seconds
-                    if len(session.killsrecent) == STATS_RECENT: session.killsrecent.pop(0)
+                    if len(session.killsrecent) == STATS_RECENT:
+                        session.killsrecent.pop(0)
                     session.killsrecent.append(seconds)
                     total.killstime += seconds
                 session.lastkillutc = logtime
@@ -807,6 +808,22 @@ def summary(stats, logtime=None, session=True):
         return
     
     stats_out = {}
+
+    #debug(f"stats_rolling: {stats_rolling} | killsrecent: {len(stats.killsrecent)} | scansrecent: {len(stats.scansrecent)}")
+
+    # Cargo scans
+    if log_levels["Scans"] > 0 and stats.scansin > 1:
+        scans_average_time = stats.scanstime / (stats.scansin - 1)
+        scans_hour = per_hour(scans_average_time, 1)
+        
+        # Recent scan rate
+        scans_recent = ""
+        if session and conf_settings["ExtendedStats"] and min(stats.kills, stats.scansin) > 10:
+            num_recents_scans = STATS_RECENT if stats.scansin > STATS_RECENT else STATS_RECENT - (STATS_RECENT - stats.scansin) - 10
+            scans_recent_average_time = sum(stats.scansrecent[-num_recents_scans:]) / num_recents_scans
+            scans_recent = f" [x{num_recents_scans}: {per_hour(scans_recent_average_time, 1)}/h]"
+        
+        stats_out["Scans"] = f"{stats.scansin:,} ({scans_hour}/h | {time_format(scans_average_time)}){scans_recent}"
     
     # Kills
     if log_levels["Kills"] > 0:
@@ -815,9 +832,10 @@ def summary(stats, logtime=None, session=True):
         
         # Recent kills
         kills_recent = ""
-        if session and conf_settings["ExtendedStats"] and stats.kills > STATS_RECENT:
-            kills_recent_average_time = sum(stats.killsrecent) / STATS_RECENT
-            kills_recent = f" [x{STATS_RECENT}: {per_hour(kills_recent_average_time, 1)}/h]"
+        if session and conf_settings["ExtendedStats"] and stats.kills > 10:
+            num_recents_kills = STATS_RECENT if stats.kills > STATS_RECENT else STATS_RECENT - (STATS_RECENT - stats.kills) - 10
+            kills_recent_average_time = sum(stats.killsrecent[-num_recents_kills:]) / num_recents_kills
+            kills_recent = f" [x{num_recents_kills}: {per_hour(kills_recent_average_time, 1)}/h]"
 
         stats_out["Kills"] = f"{stats.kills:,} ({kills_hour}/h | {time_format(kills_average_time)}){kills_recent}"
 
@@ -830,19 +848,6 @@ def summary(stats, logtime=None, session=True):
         faction_name = max(stats.factions, key=stats.factions.get)
 
         stats_out["Faction"] = f"{faction_kills:,} ({faction_kills_hour}/h | {faction_kills_percent}%) [{faction_name}]"
-    
-    # Cargo scans
-    if log_levels["Scans"] > 0 and stats.scansin > 1:
-        scans_average_time = stats.scanstime / (stats.scansin - 1)
-        scans_hour = per_hour(scans_average_time, 1)
-        
-        # Recent scan rate
-        scans_recent = ""
-        if session and conf_settings["ExtendedStats"] and min(stats.scansin, stats.kills) > STATS_RECENT:
-            scans_recent_average_time = sum(stats.scansrecent) / len(stats.scansrecent)
-            scans_recent = f" [x{STATS_RECENT}: {per_hour(scans_recent_average_time, 1)}/h]"
-        
-        stats_out["Scans"] = f"{stats.scansin:,} ({scans_hour}/h | {time_format(scans_average_time)}){scans_recent}"
     
     # Bounties
     if log_levels[kill_type] > 0:
