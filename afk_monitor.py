@@ -427,10 +427,10 @@ def per_hour(seconds=0, precision=None):
 
 # Shorten a string
 def truncate(input: str, chars: int) -> str:
-    if len(input) <= chars+2:
+    if len(input) <= chars+1:
         return input
     else:
-        return f"{input[:chars].rstrip()}.."
+        return f"{input[:chars].rstrip()}…"
 
 # Process incoming journal entries
 def processevent(line):
