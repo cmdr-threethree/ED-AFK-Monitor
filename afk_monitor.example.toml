@@ -79,6 +79,7 @@ KillRate = 3            # Warning of low kill rate per hour ('WarnKillRate' in S
 # Levels work the same, with 3 in any category adding a user ping to the message
 SummaryKills = 2        # Kills and rate/h from bounties or bonds
 SummaryFaction = 0      # As above but for the most-killed faction
+SummaryScans = 0        # Incoming cargo scans and rate/h
 SummaryBounties = 2     # Credits earned from bounties or bonds
 SummaryMerits = 2       # Merits (powerplay, only shown if merits earned)
 
