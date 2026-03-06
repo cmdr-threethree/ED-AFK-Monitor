@@ -24,7 +24,7 @@ PirateNames = false
 BountyFaction = false
 # BountyValue shows credits earned on each kill (Default: false)
 BountyValue = false
-# ExtendedStats shows extra stats e.g. recent kill rate (Default: false)
+# ExtendedStats shows extra stats e.g. various counts and recent average rates (Default: false)
 ExtendedStats = false
 # MinScanLevel specifies a minimum scan level for outgoing ship scans (Default: 1)
 MinScanLevel = 1
@@ -77,9 +77,9 @@ NoKills = 3             # Warning of no kills for configured time ('WarnNoKills'
 KillRate = 3            # Warning of low kill rate per hour ('WarnKillRate' in Settings)
 # Stat summaries are collated into one message every 10 kills and on exit
 # Levels work the same, with 3 in any category adding a user ping to the message
+SummaryScans = 0        # Incoming cargo scans and rate/h
 SummaryKills = 2        # Kills and rate/h from bounties or bonds
 SummaryFaction = 0      # As above but for the most-killed faction
-SummaryScans = 0        # Incoming cargo scans and rate/h
 SummaryBounties = 2     # Credits earned from bounties or bonds
 SummaryMerits = 2       # Merits (powerplay, only shown if merits earned)
 

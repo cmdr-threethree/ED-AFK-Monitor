@@ -6,7 +6,7 @@
 # To modify a setting, copy and paste it under [Settings] in afk_monitor.toml
 
 [Settings]
-# RecentFiles specifies number of files to show with --filesect (default: 10)
+# RecentFiles specifies number of files to show with --fileselect (default: 10)
 RecentFiles = 10
 # TruncatePirate shortens names of pirates above this length in kill logs (default: 25)
 TruncatePirate = 25
@@ -18,3 +18,5 @@ WarnNoKillsInitial = 5
 WarnKillRateDelay = 5
 # WarnCooldown is the time in minutes before repeating kill rate warnings, doubled thereafter (default: 30)
 WarnCooldown = 30
+# RecentAverageNum is the number of recent kills/scans to report on in ExtendedStats (default: 30)
+RecentAverageNum = 30

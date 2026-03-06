@@ -29,7 +29,6 @@ GITHUB_REPO = "PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
 FUEL_CRIT = 0.1		# 10%
-STATS_RECENT = 30
 UNKNOWN = "[Unknown]"
 REG_JOURNAL = r"^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$"
 REG_WEBHOOK = r"^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-z0-9_-]+$"
@@ -39,7 +38,7 @@ BAIT_MESSAGES = ["$Pirate_ThreatTooHigh", "$Pirate_NotEnoughCargo", "$Pirate_OnN
 COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", "Master", "Dangerous", "Deadly", "Elite", "Elite I", "Elite II", "Elite III", "Elite IV", "Elite V"]
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentAverageNum": 30}
 DEFAULTS_DISCORD = {"WebhookURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
 
@@ -463,14 +462,15 @@ def processevent(line):
                         thisscan = logtime
                         if session.lastscanutc:
                             seconds = int((thisscan-session.lastscanutc).total_seconds())
-                            if len(session.scansrecent) == STATS_RECENT: session.scansrecent.pop(0)
+                            if len(session.scansrecent) == conf_settings["RecentAverageNum"]:
+                                session.scansrecent.pop(0)
                             session.scansrecent.append(seconds)
                             session.scanstime += seconds
                             total.scanstime += seconds
                         session.lastscanutc = logtime
                         
                         logevent(msg_term=f"Cargo scan{scansin}{pirate}",
-                                 msg_discord=f"**Cargo scan{scansin}**{pirate}",
+                                    msg_discord=f"**Cargo scan{scansin}**{pirate}",
                                 emoji="📦", timestamp=logtime, loglevel=conf_log_levels["ScanIncoming"])
                 elif any(x in j["Message"] for x in BAIT_MESSAGES):
                     session.baitfails += 1
@@ -530,7 +530,7 @@ def processevent(line):
                     seconds = int((thiskill-session.lastkillutc).total_seconds())
                     killtime = f" (+{time_format(seconds)})"
                     session.killstime += seconds
-                    if len(session.killsrecent) == STATS_RECENT:
+                    if len(session.killsrecent) == conf_settings["RecentAverageNum"]:
                         session.killsrecent.pop(0)
                     session.killsrecent.append(seconds)
                     total.killstime += seconds
@@ -668,8 +668,8 @@ def processevent(line):
                 cmdrinfo =  f"{track.cmdrship} / {track.cmdrgamemode} / {track.cmdrcombatrank} +{track.cmdrcombatprogress}%"
                 
                 logevent(msg_term=f"CMDR {track.cmdrname} ({cmdrinfo})",
-                         msg_discord=f"**CMDR {track.cmdrname}** ({cmdrinfo})",
-                         emoji="🔄", timestamp=logtime, loglevel=2)
+                            msg_discord=f"**CMDR {track.cmdrname}** ({cmdrinfo})",
+                            emoji="🔄", timestamp=logtime, loglevel=2)
             case "Loadout":
                 track.fuelcapacity = j["FuelCapacity"]["Main"] if j["FuelCapacity"]["Main"] >= 2 else 64
                 #debug(f"Fuel capacity: {track.fuelcapacity}")
@@ -716,7 +716,7 @@ def processevent(line):
                     session.merits += j["MeritsGained"]
                     total.merits += j["MeritsGained"]
                     logevent(msg_term=f"Merits: +{j["MeritsGained"]} ({j["Power"]})",
-                             emoji="🎫", timestamp=logtime, loglevel=conf_log_levels["Merits"])
+                                emoji="🎫", timestamp=logtime, loglevel=conf_log_levels["Merits"])
                     session.meritstoreport -= 1
             case "Location":
                 #track.cmdrlocation = j["StarSystem"]
@@ -808,37 +808,33 @@ def summary(stats, logtime=None, session=True):
         return
     
     stats_out = {}
+    
+    # Shared function for cargo scan and kill summaries
+    def report(duration, count, recents):
+        average_time = duration / (count - 1)
+        hourly_rate = per_hour(average_time, 1)
+        
+        recent = ""
 
-    #debug(f"stats_rolling: {stats_rolling} | killsrecent: {len(stats.killsrecent)} | scansrecent: {len(stats.scansrecent)}")
-
+        if session and conf_settings["ExtendedStats"] and count >= 20:
+            if count >= conf_settings["RecentAverageNum"] + 10:
+                num_recents = conf_settings["RecentAverageNum"] 
+            else:
+                num_recents = count - 10 - (count % 10)
+            
+            recent_average_time = sum(recents[-num_recents:]) / num_recents
+            recent = f" [x{num_recents}: {per_hour(recent_average_time, 1)}/h]"
+        
+        return f"{count:,} ({hourly_rate}/h | {time_format(average_time)}){recent}"
+    
     # Cargo scans
     if log_levels["Scans"] > 0 and stats.scansin > 1:
-        scans_average_time = stats.scanstime / (stats.scansin - 1)
-        scans_hour = per_hour(scans_average_time, 1)
-        
-        # Recent scan rate
-        scans_recent = ""
-        if session and conf_settings["ExtendedStats"] and min(stats.kills, stats.scansin) > 10:
-            num_recents_scans = STATS_RECENT if stats.scansin > STATS_RECENT else STATS_RECENT - (STATS_RECENT - stats.scansin) - 10
-            scans_recent_average_time = sum(stats.scansrecent[-num_recents_scans:]) / num_recents_scans
-            scans_recent = f" [x{num_recents_scans}: {per_hour(scans_recent_average_time, 1)}/h]"
-        
-        stats_out["Scans"] = f"{stats.scansin:,} ({scans_hour}/h | {time_format(scans_average_time)}){scans_recent}"
+        stats_out["Scans"] = report(stats.scanstime, stats.scansin, stats.scansrecent)
     
     # Kills
     if log_levels["Kills"] > 0:
-        kills_average_time = stats.killstime / (stats.kills - 1)
-        kills_hour = per_hour(kills_average_time, 1)
-        
-        # Recent kills
-        kills_recent = ""
-        if session and conf_settings["ExtendedStats"] and stats.kills > 10:
-            num_recents_kills = STATS_RECENT if stats.kills > STATS_RECENT else STATS_RECENT - (STATS_RECENT - stats.kills) - 10
-            kills_recent_average_time = sum(stats.killsrecent[-num_recents_kills:]) / num_recents_kills
-            kills_recent = f" [x{num_recents_kills}: {per_hour(kills_recent_average_time, 1)}/h]"
-
-        stats_out["Kills"] = f"{stats.kills:,} ({kills_hour}/h | {time_format(kills_average_time)}){kills_recent}"
-
+        stats_out["Kills"] = report(stats.killstime, stats.kills, stats.killsrecent)
+    
     # Faction #1 kills
     faction_kills = max(stats.factions.values())
     if log_levels["Faction"] > 0 and faction_kills > 1:
@@ -910,8 +906,8 @@ if __name__ == "__main__":
                 discordsend(f"# 💥 ED AFK Monitor 💥\n-# **by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}**")
         
         logevent(msg_term=f"Monitor started ({journal_file})",
-                 msg_discord=f"**Monitor started** ({journal_file})",
-                 emoji="📖", loglevel=2)
+                    msg_discord=f"**Monitor started** ({journal_file})",
+                    emoji="📖", loglevel=2)
         
         # Open journal from end and watch for new lines
         trackingerror = None
