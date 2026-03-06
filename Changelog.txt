@@ -1,6 +1,22 @@
-------------------------
+========================
 ED AFK Monitor Changelog
-------------------------
+========================
+
+v260306
+-------
+- Elapsed time and mission completions added to stats summaries
+- Incoming cargo scan stats added to summaries (log level 'SummaryScans')
+- Optional settings implemented
+  - RecentFiles: number of files to show with --fileselect
+  - TruncatePirate: shorten names of pirates above this length
+  - TruncateFaction: shorten names of factions above this length
+  - WarnNoKillsInitial: minutes before warning of no kills at session start
+  - WarnKillRateDelay: minutes before warning of low kill rate at session start
+  - WarnCooldown: minutes before repeating kill rate warnings
+  - RecentAverageNum: number of recent kills/scans to report on (ExtendedStats)
+- Config handling rewrite
+  - Warning shown if (non-optional) setting missing from config
+  - Warning shown if setting in config doesn't match expected type
 
 v260204
 -------
