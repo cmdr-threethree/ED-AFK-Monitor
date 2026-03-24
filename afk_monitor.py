@@ -27,7 +27,7 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = 260320
+VERSION = 260320.1
 GITHUB_REPO = "PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
@@ -943,8 +943,8 @@ def update_status(reset=False):
             if conf_settings["DynamicTitle"] and os.name=="nt":
                 ctypes.windll.kernel32.SetConsoleTitleW(f"💥{kills_hour}/h ⌚{last_kill} 🎯 {s_missions}")
             
-        elif reset == True:
-            if conf_settings["DynamicTitle"]:
+        elif reset:
+            if conf_settings["DynamicTitle"] and os.name=="nt":
                 ctypes.windll.kernel32.SetConsoleTitleW(f"ED AFK Monitor v{VERSION}")
             if conf_settings["LiveStatus"]:
                 msg.clear_status()
