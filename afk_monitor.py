@@ -1249,10 +1249,7 @@ if setting_web:
                     break
                 try:
                     event = web_stream.queue.get_nowait()
-                    yield {
-                        "event": event["event"],
-                        "data": json.dumps(event["data"])
-                    }
+                    yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
                 except queue.Empty:
                     await asyncio.sleep(0.1)
         return StreamingResponse(event_generator(), media_type="text/event-stream")
