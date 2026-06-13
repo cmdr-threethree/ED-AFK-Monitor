@@ -1,9 +1,12 @@
 import argparse
+import asyncio
 import ctypes
 import json
 import os
+import queue
 import re
 import sys
+import threading
 import time
 import tomllib
 import traceback
@@ -19,6 +22,14 @@ try:
 except ImportError:
     discord_enabled = False
     print("discord-webhook unavailable - operating with terminal output only\n")
+
+try:
+    from fastapi import FastAPI, Request
+    from fastapi.responses import StreamingResponse
+    import uvicorn
+    web_available = True
+except ImportError:
+    web_available = False
 
 def fallover(message):
     print(message)
@@ -166,6 +177,16 @@ class StatusLogger:
     def show_cursor(self):
         self._write(self.ANSI_SHOW_CURSOR)
 
+class WebStream:
+    """Manages an event queue for SSE web clients"""
+    def __init__(self):
+        self.queue = queue.Queue()
+
+    def put(self, event_type, data):
+        self.queue.put({"event": event_type, "data": data})
+
+web_stream = WebStream()
+
 msg = StatusLogger()
 
 # Update check
@@ -211,6 +232,8 @@ parser.add_argument("-w", "--webhook", help="Override for Discord webhook URL")
 parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
 parser.add_argument("-t", "--test", action="store_true", default=None, help="Re-routes Discord messages to terminal")
 parser.add_argument("-d", "--debug", action="store_true", default=None, help="Print information for debugging")
+parser.add_argument("--web", action="store_true", default=False, help="Enable real-time streaming web UI")
+parser.add_argument("--port", type=int, default=8000, help="Port to run web UI on (default: 8000)")
 file_group = parser.add_mutually_exclusive_group()
 file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
 file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
@@ -249,6 +272,8 @@ setting_recent_files = getconfig("Settings", {"RecentFiles": DEFAULTS_EXTRA["Rec
 setting_journal_file = args.setfile if args.setfile is not None else None
 discord_test = args.test if args.test is not None else DISCORD_TEST
 debug_mode = args.debug if args.debug is not None else DEBUG_MODE
+setting_web = args.web and web_available
+setting_port = args.port
 
 def debug(message):
     if debug_mode:
@@ -529,8 +554,13 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
     # Terminal
     if loglevel > 0 and not discord_test:
         msg.log(f"[{logtime}]{emoji}{msg_term}")
-    
+
+    # Web UI
+    if setting_web:
+        web_stream.put("log", {"time": logtime, "emoji": emoji, "message": msg_term})
+
     # Discord
+
     if discord_enabled and loglevel > 1:
         if event is not None and track.dupeevent == event:
             track.duperepeats += 1
@@ -998,6 +1028,22 @@ def update_status(reset=False):
             
             if conf_settings["LiveStatus"]:
                 msg.set_status(f"{status_col}[{time_clock:>8}]💥 {s_kills:<23} | 📦 {s_scans:<23} | ⏱️ {time_sesh:<5} | 🎯 {s_missions}")
+
+            # Web UI
+            if setting_web:
+                web_stream.put("status", {
+                    "time": time_clock,
+                    "kills": session.kills,
+                    "kills_h": str(kills_hour),
+                    "last_kill": last_kill,
+                    "scans": session.scansin,
+                    "scans_h": str(scans_hour),
+                    "last_scan": lastscan,
+                    "session_time": time_sesh,
+                    "missions": f"{track.missionredirects}/{len(track.missionsactive)}",
+                    "fuel": round(session.fuellastremain, 2) if session.fuellastremain else 0,
+                    "fuel_cap": track.fuelcapacity
+                })
             
             # Window title (Windows only)
             if conf_settings["DynamicTitle"] and os.name=="nt":
@@ -1089,6 +1135,134 @@ def summary(stats, logtime=None, session=True):
         logevent(msg_term=f"{out_terminal}",
             msg_discord=f"{out_discord}",
             emoji="📝", timestamp=logtime, loglevel=log_max)
+
+# --- Web UI Implementation ---
+if setting_web:
+    app = FastAPI(title="ED AFK Monitor Web UI")
+
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ED AFK Monitor</title>
+        <style>
+            body { background-color: #0b0b0b; color: #ff8c00; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+            header { background-color: #1a1a1a; padding: 1rem; border-bottom: 2px solid #ff8c00; display: flex; justify-content: space-between; align-items: center; }
+            h1 { margin: 0; font-size: 1.2rem; }
+            #status-time { font-family: monospace; font-size: 1.1rem; }
+            .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1rem; }
+            .card { background-color: #1a1a1a; padding: 1rem; border-radius: 8px; border: 1px solid #333; }
+            .card-title { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 1px; }
+            .card-value { font-size: 1.5rem; font-weight: bold; }
+            .log-container { flex-grow: 1; padding: 1rem; overflow-y: auto; background-color: #050505; border-top: 1px solid #333; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.85rem; display: flex; flex-direction: column-reverse; }
+            .log-entry { margin-bottom: 0.3rem; line-height: 1.4; border-bottom: 1px solid #111; padding-bottom: 0.2rem; }
+            .log-time { color: #555; margin-right: 0.5rem; }
+            .fuel-bar { height: 8px; background-color: #333; border-radius: 4px; margin-top: 0.8rem; overflow: hidden; }
+            .fuel-fill { height: 100%; background-color: #ff8c00; transition: width 0.5s ease-out; }
+            .fuel-crit { background-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+            ::-webkit-scrollbar { width: 8px; }
+            ::-webkit-scrollbar-track { background: #111; }
+            ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+            ::-webkit-scrollbar-thumb:hover { background: #444; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>ED AFK MONITOR</h1>
+            <div id="status-time">--:--:--</div>
+        </header>
+        <div class="dashboard">
+            <div class="card">
+                <div class="card-title">Kills / Rate</div>
+                <div class="card-value" id="kills-val">0 <span style="font-size: 0.9rem; color: #666;">(0/h)</span></div>
+                <div style="font-size: 0.75rem; margin-top: 0.5rem; color: #888;">Last: <span id="last-kill-val" style="color: #ff8c00;">-</span></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Scans / Rate</div>
+                <div class="card-value" id="scans-val">0 <span style="font-size: 0.9rem; color: #666;">(0/h)</span></div>
+                <div style="font-size: 0.75rem; margin-top: 0.5rem; color: #888;">Last: <span id="last-scan-val" style="color: #ff8c00;">-</span></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Session Time</div>
+                <div class="card-value" id="session-time-val">0s</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Fuel / Missions</div>
+                <div class="card-value" id="fuel-val">0%</div>
+                <div class="fuel-bar"><div id="fuel-fill" class="fuel-fill" style="width: 0%;"></div></div>
+                <div style="font-size: 0.75rem; margin-top: 0.5rem; color: #888;">Missions: <span id="missions-val" style="color: #ff8c00;">0/0</span></div>
+            </div>
+        </div>
+        <div class="log-container" id="log">
+        </div>
+
+        <script>
+            const logElement = document.getElementById('log');
+            const eventSource = new EventSource('/events');
+
+            eventSource.addEventListener('log', (e) => {
+                const data = JSON.parse(e.data);
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${data.time}]</span>${data.emoji} ${data.message}`;
+                logElement.prepend(entry);
+                if (logElement.childNodes.length > 300) logElement.removeChild(logElement.lastChild);
+            });
+
+            eventSource.addEventListener('status', (e) => {
+                const data = JSON.parse(e.data);
+                document.getElementById('status-time').innerText = data.time;
+                document.getElementById('kills-val').innerHTML = `${data.kills} <span style="font-size: 0.9rem; color: #666;">(${data.kills_h}/h)</span>`;
+                document.getElementById('last-kill-val').innerText = data.last_kill;
+                document.getElementById('scans-val').innerHTML = `${data.scans} <span style="font-size: 0.9rem; color: #666;">(${data.scans_h}/h)</span>`;
+                document.getElementById('last-scan-val').innerText = data.last_scan;
+                document.getElementById('session-time-val').innerText = data.session_time;
+                document.getElementById('missions-val').innerText = data.missions;
+                
+                const fuelPct = data.fuel_cap > 0 ? (data.fuel / data.fuel_cap) * 100 : 0;
+                document.getElementById('fuel-val').innerText = `${Math.round(fuelPct)}% (${data.fuel}t)`;
+                const fill = document.getElementById('fuel-fill');
+                fill.style.width = `${fuelPct}%`;
+                fill.classList.toggle('fuel-crit', fuelPct < 20);
+            });
+
+            eventSource.onerror = () => {
+                console.error("SSE connection lost. Reconnecting...");
+            };
+        </script>
+    </body>
+    </html>
+    """
+
+    @app.get("/")
+    async def get_index():
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content)
+
+    @app.get("/events")
+    async def events(request: Request):
+        async def event_generator():
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = web_stream.queue.get_nowait()
+                    yield {
+                        "event": event["event"],
+                        "data": json.dumps(event["data"])
+                    }
+                except queue.Empty:
+                    await asyncio.sleep(0.1)
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    def run_server():
+        uvicorn.run(app, host="0.0.0.0", port=setting_port, log_level="error")
+
+    web_thread = threading.Thread(target=run_server, daemon=True)
+    web_thread.start()
+    msg.log(f"{Col.GOOD}Web UI started at http://localhost:{setting_port}{Col.END}")
 
 if __name__ == "__main__":
     try:

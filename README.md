@@ -92,6 +92,8 @@ You can pass the following arguments when launching AFK Monitor:
 -d, --debug                                   Print information for debugging
 -s, --setfile <journal_file_path>             Set specific journal file to use
 -f, --fileselect                              Show list of recent journals to chose from
+--web                                         Enable real-time streaming web UI
+--port <port_number>                          Port to run web UI on (default: 8000)
 ```
 
 ## Common Issues
